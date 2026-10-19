@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anatomia de um Pico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  /* =========================================================
+     CardioIA · Fase 6 · "Anatomia de um Pico"
+     Jogo em modo REPLAY: reencena decisões REAIS gravadas
+     pela Caixa-Preta do Dr. Burco (IR ALÉM 1).
+     Nada aqui chama API: só lê os registros embutidos abaixo.
+     ========================================================= */
+  :root {
+    --bg: #0b0e1f;
+    --painel: #141936;
+    --borda: #3a4a9a;
+    --texto: #e9ecff;
+    --suave: #9aa3d6;
+    --neon-rosa: #ff4fa3;
+    --neon-ciano: #39e6ff;
+    --verde: #4be08a;
+    --amarelo: #ffd23f;
+    --vermelho: #ff5a5a;
+    --pixel: "Press Start 2P", ui-monospace, monospace;
+    --corpo: "VT323", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--texto); }
+  body { font-family: var(--corpo); font-size: 22px; line-height: 1.25; }
+  .app { max-width: 980px; margin: 0 auto; padding: 16px; }
+
+  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  header h1 { font-family: var(--pixel); font-size: 14px; margin: 0; color: var(--neon-ciano); letter-spacing: 1px; }
+  header .tag { font-size: 18px; color: var(--suave); }
+
+  .palco { position: relative; border: 4px solid var(--borda); background: #000; image-rendering: pixelated; }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; image-rendering: pixelated; image-rendering: crisp-edges; cursor: pointer; }
+  .hud { position: absolute; top: 6px; left: 8px; right: 8px; display: flex; justify-content: space-between; font-family: var(--pixel); font-size: 9px; color: #fff; text-shadow: 2px 2px 0 #000; pointer-events: none; }
+
+  .caixa { border: 4px solid var(--borda); background: var(--painel); padding: 14px 16px; margin-top: 12px; box-shadow: 6px 6px 0 #05071a; }
+  .caixa h2 { font-family: var(--pixel); font-size: 12px; margin: 0 0 12px; color: var(--amarelo); line-height: 1.6; }
+
+  /* Caixa de diálogo estilo RPG */
+  .dialogo .quem { font-family: var(--pixel); font-size: 10px; color: var(--neon-rosa); margin-bottom: 8px; line-height: 1.6; }
+  .dialogo .fala { min-height: 2.6em; font-size: 24px; }
+  .dialogo .tecnico { margin-top: 10px; padding: 8px 10px; background: #0a0d22; border-left: 4px solid var(--neon-ciano); font-size: 20px; color: #bfe9ff; word-break: break-word; }
+  .dialogo .tecnico b { color: var(--neon-ciano); font-weight: normal; }
+  .dialogo .seguir { margin-top: 10px; font-family: var(--pixel); font-size: 9px; color: var(--suave); text-align: right; animation: piscar 1s steps(2) infinite; }
+  @keyframes piscar { 50% { opacity: 0; } }
+
+  button.btn { font-family: var(--pixel); font-size: 10px; padding: 12px 14px; background: var(--borda); color: #fff; border: 0; box-shadow: 4px 4px 0 #05071a; cursor: pointer; line-height: 1.5; }
+  button.btn:hover, button.btn:focus-visible { background: var(--neon-rosa); outline: none; }
+  button.btn.sec { background: #2a2f55; }
+  .botoes { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .card { text-align: left; font-family: var(--corpo); font-size: 21px; color: var(--texto); background: #1b2147; border: 3px solid var(--borda); padding: 10px 12px; cursor: pointer; }
+  .card:hover, .card:focus-visible { border-color: var(--neon-rosa); outline: none; }
+  .card .nome { font-size: 23px; }
+  .card .meta { color: var(--suave); font-size: 18px; margin-top: 4px; }
+
+  .selo { display: inline-block; font-family: var(--pixel); font-size: 8px; padding: 4px 6px; margin-top: 6px; }
+  .selo.agentes { background: var(--verde); color: #04210f; }
+  .selo.seguranca { background: var(--amarelo); color: #2b2100; }
+
+  .palpites { display: flex; flex-wrap: wrap; gap: 10px; }
+  .palpites .btn.baixo { background: #1f7a4a; }
+  .palpites .btn.moderado { background: #9a7a10; }
+  .palpites .btn.alto { background: #9a2030; }
+
+  /* Painel técnico do resultado (formato do enunciado) */
+  .tecnico-final { font-family: var(--corpo); font-size: 23px; background: #0a0d22; border: 3px solid var(--neon-ciano); padding: 12px 14px; }
+  .tecnico-final .linha { margin: 2px 0; }
+  .tecnico-final .rotulo { color: var(--neon-ciano); }
+  .tecnico-final ul { margin: 6px 0 0 0; padding-left: 22px; }
+  .tecnico-final li small { color: var(--suave); font-size: 18px; }
+  .cls-ALTO { color: var(--vermelho); } .cls-MODERADO { color: var(--amarelo); } .cls-BAIXO { color: var(--verde); }
+
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  @media (max-width: 720px) { .grade { grid-template-columns: 1fr; } body { font-size: 19px; } .tecnico-final { font-size: 19px; } .app { padding: 10px; } }
+  .mini h3 { font-family: var(--pixel); font-size: 9px; color: var(--amarelo); margin: 0 0 8px; line-height: 1.6; }
+  .mini { background: #10143a; border: 3px solid #2a3470; padding: 10px 12px; }
+  .ok { color: var(--verde); } .falha { color: var(--vermelho); } .alerta { color: var(--amarelo); }
+  .narracao { font-style: italic; color: #ffd9ec; }
+  pre.json { max-height: 280px; overflow: auto; background: #05071a; padding: 10px; font-size: 16px; color: #bfe9ff; white-space: pre-wrap; word-break: break-word; }
+  .placar { font-family: var(--pixel); font-size: 10px; line-height: 1.8; }
+
+  footer { margin-top: 16px; font-size: 18px; color: var(--suave); }
+  .oculto { display: none !important; }
+  .titulo-grande { font-family: var(--pixel); font-size: 18px; color: var(--neon-rosa); line-height: 1.6; margin: 0 0 8px; text-shadow: 3px 3px 0 #2a0a1e; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>♥ HOSPITAL GRAÇA CARDÍACA · PLANTÃO</h1>
+    <span class="tag" id="tag-fonte">Replay de registros reais da Caixa-Preta</span>
+  </header>
+
+  <div class="palco">
+    <canvas id="tela" width="480" height="270" aria-label="Cena do plantão em pixel art"></canvas>
+    <div class="hud"><span id="hud-esq"></span><span id="hud-dir"></span></div>
+  </div>
+
+  <!-- Telas em HTML (texto legível fica fora do canvas) -->
+  <section class="caixa" id="tela-titulo">
+    <p class="titulo-grande">ANATOMIA DE UM PICO</p>
+    <p>Um plantão no Hospital Graça Cardíaca. Cada paciente passa pela equipe de agentes de IA do <b>CardioIA</b>: quem calcula o risco, quem consulta os protocolos, quem planeja a resposta e quem audita tudo.</p>
+    <p>Você é o <b>interno</b>: chute o risco antes da equipe e veja se acerta. Durante a corrida, pule as macas com <b>ESPAÇO</b>, <b>↑</b> ou um <b>toque</b> na cena.</p>
+    <div class="botoes"><button class="btn" id="btn-start">▶ PRESS START</button></div>
+  </section>
+
+  <section class="caixa oculto" id="tela-selecao">
+    <h2>ESCOLHA O PACIENTE</h2>
+    <p style="margin-top:0">Todos os casos abaixo foram atendidos de verdade e gravados na Caixa-Preta. O selo mostra como o sistema operou naquele momento.</p>
+    <div class="cards" id="lista-pacientes"></div>
+  </section>
+
+  <section class="caixa oculto" id="tela-palpite">
+    <h2 id="palpite-titulo">QUAL O RISCO?</h2>
+    <p id="palpite-dados"></p>
+    <div class="palpites">
+      <button class="btn baixo" data-palpite="BAIXO">BAIXO</button>
+      <button class="btn moderado" data-palpite="MODERADO">MODERADO</button>
+      <button class="btn alto" data-palpite="ALTO">ALTO</button>
+    </div>
+  </section>
+
+  <section class="caixa dialogo oculto" id="tela-dialogo" aria-live="polite">
+    <div class="quem" id="dlg-quem"></div>
+    <div class="fala" id="dlg-fala"></div>
+    <div class="tecnico" id="dlg-tecnico"></div>
+    <div class="seguir" id="dlg-seguir">▶ ESPAÇO / TOQUE PARA CONTINUAR</div>
+  </section>
+
+  <section class="caixa oculto" id="tela-resultado">
+    <h2 id="res-titulo">RESULTADO DO PLANTÃO</h2>
+    <div class="tecnico-final" id="res-tecnico"></div>
+    <div class="grade">
+      <div class="mini"><h3>🎙️ NARRAÇÃO DA DRA. MEREDITE</h3><div id="res-narracao" class="narracao"></div></div>
+      <div class="mini"><h3>📼 AUDITORIA DO DR. BURCO</h3><div id="res-auditoria"></div></div>
+      <div class="mini"><h3>🧭 COMO O SISTEMA OPEROU</h3><div id="res-modo"></div></div>
+      <div class="mini"><h3>🏆 INTERNO VS CARDIOIA</h3><div id="res-placar" class="placar"></div></div>
+    </div>
+    <div class="botoes">
+      <button class="btn" id="btn-outro">↺ OUTRO PACIENTE</button>
+      <button class="btn sec" id="btn-json">{ } VER REGISTRO ORIGINAL</button>
+    </div>
+    <pre class="json oculto" id="res-json"></pre>
+  </section>
+
+  <footer>
+    ⚠️ Protótipo acadêmico (FIAP · CardioIA Fase 6) com dados sintéticos. Apoio à decisão; não substitui avaliação médica.
+    Personagens são paródia/homenagem, sem fins comerciais e sem afiliação com nenhuma série.
+  </footer>
+</div>
+
+<script>
+/* =========================================================
+   1. DADOS: registros reais da Caixa-Preta (logs/caixa_preta.jsonl),
+      embutidos no build. Não editar à mão.
+   ========================================================= */
+const REGISTROS = [{"id": 1, "data_hora": "2026-10-19T12:42:10-03:00", "paciente": "Caso oficial do enunciado", "entrada": {"idade_media": 62.0, "carga_sistema": 92.0, "tempo_espera": 75.0, "fc_media": 118.0, "spo2_media": 89.0, "pa_sistolica": 100.0, "temperatura": 37.5, "densidade_eventos": 7.0, "eventos_24h": 5.0, "disponibilidade_recursos": 25.0}, "modelo_ml": {"nome": "Random Forest", "versao": "1.0.0"}, "modelo_linguagem": null, "modo": "SEGURANÇA", "motivo_modo": "Todos os modelos falharam agora: ['gemini-3-flash-preview: APITimeoutError', 'gemini-3.1-flash-lite: InternalServerError', 'gemini-3.8-flash: InternalServerError']", "probabilidade": 0.98, "classificacao": "ALTO", "protocolos": [{"protocolo": "Se carga do sistema > 85% → abrir unidades temporárias", "motivo": "carga_sistema = 92 (> 85)"}, {"protocolo": "Se disponibilidade_recursos < 30% → redistribuir insumos", "motivo": "disponibilidade_recursos = 25 (< 30)"}, {"protocolo": "Se densidade_eventos > 6 → ativar plano de contingência", "motivo": "densidade_eventos = 7 (> 6)"}, {"protocolo": "Se risco sistêmico alto → ativar estado de emergência", "motivo": "probabilidade prevista = 0.98 (>= 0.7)"}], "acoes_operacionais": ["Executar: abrir unidades temporárias", "Executar: redistribuir insumos", "Executar: ativar plano de contingência", "Executar: ativar estado de emergência"], "narracao": "(Modo de segurança: narração indisponível.)", "agentes_acionados": [], "trilha_handoffs_e_tools": [], "tempo_segundos": null, "auditoria": {"aprovada": true, "total_erros": 0, "total_alertas": 0, "verificacoes": [{"verificacao": "probabilidade_valida", "ok": true, "severidade": "ERRO", "detalhe": "probabilidade = 0.98"}, {"verificacao": "faixa_de_risco", "ok": true, "severidade": "ERRO", "detalhe": "registrada = ALTO; esperada para 0.98 = ALTO"}, {"verificacao": "protocolos_completos", "ok": true, "severidade": "ERRO", "detalhe": "todos os protocolos aplicáveis foram sugeridos"}, {"verificacao": "protocolos_justificados", "ok": true, "severidade": "ERRO", "detalhe": "todo protocolo sugerido tem base nos dados"}, {"verificacao": "concordancia_modelo_regra", "ok": true, "severidade": "ALERTA", "detalhe": "regra de referência: 6 limite(s) ultrapassado(s) → pico; modelo: pico (0.98)"}]}, "aviso": "Protótipo acadêmico com dados sintéticos. Apoio à decisão; não substitui avaliação médica.", "hash_anterior": "0000000000000000000000000000000000000000000000000000000000000000", "hash_registro": "1f0476b6c7c2db571fa03c0ff2c3f0ef30a5294669f44db9779dcd06c3111c60"}, {"id": 2, "data_hora": "2026-10-19T12:44:02-03:00", "paciente": "Seu Antônio, 58 anos", "entrada": {"idade_media": 58.0, "carga_sistema": 50.0, "tempo_espera": 30.0, "fc_media": 78.0, "spo2_media": 97.0, "pa_sistolica": 120.0, "temperatura": 36.5, "densidade_eventos": 2.0, "eventos_24h": 1.0, "disponibilidade_recursos": 80.0}, "modelo_ml": {"nome": "Random Forest", "versao": "1.0.0"}, "modelo_linguagem": "gemini-3-flash-preview", "modo": "AGENTES", "motivo_modo": null, "probabilidade": 0.0, "classificacao": "BAIXO", "protocolos": [], "acoes_operacionais": ["Manter o monitoramento de rotina dos sinais vitais conforme o padrão da unidade.", "Realizar nova triagem se houver qualquer alteração no quadro clínico ou queixa do paciente.", "Garantir o conforto do paciente enquanto aguarda a avaliação da equipe de plantão."], "narracao": "No silêncio dos corredores, às vezes a melhor notícia é a calmaria de um monitor estável. O caso do Seu Antônio nos lembra que a medicina também é saber observar e respeitar o tempo do corpo. Nem todo plantão precisa de uma tempestade; hoje, o ritmo dele é de tranquilidade.", "agentes_acionados": ["Orquestrador (Dr. Ricardo Uéber)", "Analista de Risco (Dra. Cristiana Yeng)", "Especialista em Protocolos (Dra. Mirandinha Beilei)", "Planejador de Resposta (Dra. Meredite Grei)", "Validação de saída (Dr. Burco): aprovada"], "trilha_handoffs_e_tools": ["encaminhar_para_analista_de_risco", "prever_risco", "encaminhar_para_protocolos", "consultar_protocolos", "encaminhar_para_planejador"], "tempo_segundos": 106.8, "auditoria": {"aprovada": true, "total_erros": 0, "total_alertas": 0, "verificacoes": [{"verificacao": "probabilidade_valida", "ok": true, "severidade": "ERRO", "detalhe": "probabilidade = 0.0"}, {"verificacao": "faixa_de_risco", "ok": true, "severidade": "ERRO", "detalhe": "registrada = BAIXO; esperada para 0.00 = BAIXO"}, {"verificacao": "protocolos_completos", "ok": true, "severidade": "ERRO", "detalhe": "todos os protocolos aplicáveis foram sugeridos"}, {"verificacao": "protocolos_justificados", "ok": true, "severidade": "ERRO", "detalhe": "todo protocolo sugerido tem base nos dados"}, {"verificacao": "concordancia_modelo_regra", "ok": true, "severidade": "ALERTA", "detalhe": "regra de referência: 0 limite(s) ultrapassado(s) → sem pico; modelo: sem pico (0.00)"}]}, "aviso": "Protótipo acadêmico com dados sintéticos. Apoio à decisão; não substitui avaliação médica.", "hash_anterior": "1f0476b6c7c2db571fa03c0ff2c3f0ef30a5294669f44db9779dcd06c3111c60", "hash_registro": "692d1dbbed795bc5dfe77b322adfbcbe9bd4ea300ce24d6f15df74a5271182cd"}, {"id": 3, "data_hora": "2026-10-19T12:49:41-03:00", "paciente": "Marcos, 34 anos, usa vape há 6 anos", "entrada": {"idade_media": 34.0, "carga_sistema": 79.0, "tempo_espera": 40.0, "fc_media": 125.0, "spo2_media": 94.0, "pa_sistolica": 135.0, "temperatura": 36.8, "densidade_eventos": 3.0, "eventos_24h": 2.0, "disponibilidade_recursos": 42.0}, "modelo_ml": {"nome": "Random Forest", "versao": "1.0.0"}, "modelo_linguagem": null, "modo": "SEGURANÇA", "motivo_modo": "Todos os modelos falharam agora: ['gemini-3-flash-preview: RateLimitError', 'gemini-3.1-flash-lite: InternalServerError', 'gemini-3.8-flash: InternalServerError']", "probabilidade": 0.29, "classificacao": "BAIXO", "protocolos": [{"protocolo": "Se FC > 120 → iniciar monitoramento intensivo", "motivo": "fc_media = 125 (> 120)"}], "acoes_operacionais": ["Executar: iniciar monitoramento intensivo"], "narracao": "(Modo de segurança: narração indisponível.)", "agentes_acionados": [], "trilha_handoffs_e_tools": [], "tempo_segundos": null, "auditoria": {"aprovada": true, "total_erros": 0, "total_alertas": 0, "verificacoes": [{"verificacao": "probabilidade_valida", "ok": true, "severidade": "ERRO", "detalhe": "probabilidade = 0.29"}, {"verificacao": "faixa_de_risco", "ok": true, "severidade": "ERRO", "detalhe": "registrada = BAIXO; esperada para 0.29 = BAIXO"}, {"verificacao": "critica_fc_media", "ok": true, "severidade": "ERRO", "detalhe": "fc_media = 125 (> 120) exige: Se FC > 120 → iniciar monitoramento intensivo"}, {"verificacao": "protocolos_completos", "ok": true, "severidade": "ERRO", "detalhe": "todos os protocolos aplicáveis foram sugeridos"}, {"verificacao": "protocolos_justificados", "ok": true, "severidade": "ERRO", "detalhe": "todo protocolo sugerido tem base nos dados"}, {"verificacao": "concordancia_modelo_regra", "ok": true, "severidade": "ALERTA", "detalhe": "regra de referência: 1 limite(s) ultrapassado(s) → sem pico; modelo: sem pico (0.29)"}]}, "aviso": "Protótipo acadêmico com dados sintéticos. Apoio à decisão; não substitui avaliação médica.", "hash_anterior": "692d1dbbed795bc5dfe77b322adfbcbe9bd4ea300ce24d6f15df74a5271182cd", "hash_registro": "e3827b07bccc3182760379efd3ac9a24bd6f2ee00da2144b4326c8da855de1f2"}, {"id": 4, "data_hora": "2026-10-19T12:49:55-03:00", "paciente": "Dona Lúcia, 71 anos", "entrada": {"idade_media": 71.0, "carga_sistema": 75.0, "tempo_espera": 70.0, "fc_media": 102.0, "spo2_media": 87.0, "pa_sistolica": 110.0, "temperatura": 37.2, "densidade_eventos": 4.0, "eventos_24h": 3.0, "disponibilidade_recursos": 55.0}, "modelo_ml": {"nome": "Random Forest", "versao": "1.0.0"}, "modelo_linguagem": null, "modo": "SEGURANÇA", "motivo_modo": "Todos os modelos falharam agora: ['gemini-3-flash-preview: RateLimitError', 'gemini-3.1-flash-lite: InternalServerError', 'gemini-3.8-flash: InternalServerError']", "probabilidade": 0.85, "classificacao": "ALTO", "protocolos": [{"protocolo": "Se SPO2 < 88% → iniciar suporte respiratório imediato", "motivo": "spo2_media = 87 (< 88)"}, {"protocolo": "Se risco sistêmico alto → ativar estado de emergência", "motivo": "probabilidade prevista = 0.85 (>= 0.7)"}], "acoes_operacionais": ["Executar: iniciar suporte respiratório imediato", "Executar: ativar estado de emergência"], "narracao": "(Modo de segurança: narração indisponível.)", "agentes_acionados": [], "trilha_handoffs_e_tools": [], "tempo_segundos": null, "auditoria": {"aprovada": true, "total_erros": 0, "total_alertas": 0, "verificacoes": [{"verificacao": "probabilidade_valida", "ok": true, "severidade": "ERRO", "detalhe": "probabilidade = 0.85"}, {"verificacao": "faixa_de_risco", "ok": true, "severidade": "ERRO", "detalhe": "registrada = ALTO; esperada para 0.85 = ALTO"}, {"verificacao": "critica_spo2_media", "ok": true, "severidade": "ERRO", "detalhe": "spo2_media = 87 (< 88) exige: Se SPO2 < 88% → iniciar suporte respiratório imediato"}, {"verificacao": "protocolos_completos", "ok": true, "severidade": "ERRO", "detalhe": "todos os protocolos aplicáveis foram sugeridos"}, {"verificacao": "protocolos_justificados", "ok": true, "severidade": "ERRO", "detalhe": "todo protocolo sugerido tem base nos dados"}, {"verificacao": "concordancia_modelo_regra", "ok": true, "severidade": "ALERTA", "detalhe": "regra de referência: 2 limite(s) ultrapassado(s) → pico; modelo: pico (0.85)"}]}, "aviso": "Protótipo acadêmico com dados sintéticos. Apoio à decisão; não substitui avaliação médica.", "hash_anterior": "e3827b07bccc3182760379efd3ac9a24bd6f2ee00da2144b4326c8da855de1f2", "hash_registro": "6f19de7ac2b647ce18a1289393a793958cd994881dac281e31bd64f4564f6850"}, {"id": 5, "data_hora": "2026-10-19T12:50:07-03:00", "paciente": "Plantão lotado de sexta à noite", "entrada": {"idade_media": 66.0, "carga_sistema": 96.0, "tempo_espera": 110.0, "fc_media": 122.0, "spo2_media": 90.0, "pa_sistolica": 88.0, "temperatura": 38.4, "densidade_eventos": 8.0, "eventos_24h": 6.0, "disponibilidade_recursos": 22.0}, "modelo_ml": {"nome": "Random Forest", "versao": "1.0.0"}, "modelo_linguagem": null, "modo": "SEGURANÇA", "motivo_modo": "Todos os modelos falharam agora: ['gemini-3-flash-preview: RateLimitError', 'gemini-3.1-flash-lite: InternalServerError', 'gemini-3.8-flash: RateLimitError']", "probabilidade": 0.97, "classificacao": "ALTO", "protocolos": [{"protocolo": "Se carga do sistema > 85% → abrir unidades temporárias", "motivo": "carga_sistema = 96 (> 85)"}, {"protocolo": "Se FC > 120 → iniciar monitoramento intensivo", "motivo": "fc_media = 122 (> 120)"}, {"protocolo": "Se eventos_24h > 5 → ativar equipe de resposta rápida", "motivo": "eventos_24h = 6 (> 5)"}, {"protocolo": "Se disponibilidade_recursos < 30% → redistribuir insumos", "motivo": "disponibilidade_recursos = 22 (< 30)"}, {"protocolo": "Se tempo_espera > 90 min → priorizar triagem emergencial", "motivo": "tempo_espera = 110 (> 90)"}, {"protocolo": "Se temperatura > 38°C média → iniciar protocolo infeccioso", "motivo": "temperatura = 38.4 (> 38)"}, {"protocolo": "Se densidade_eventos > 6 → ativar plano de contingência", "motivo": "densidade_eventos = 8 (> 6)"}, {"protocolo": "Se PA sistólica < 90 → iniciar protocolo de choque", "motivo": "pa_sistolica = 88 (< 90)"}, {"protocolo": "Se risco sistêmico alto → ativar estado de emergência", "motivo": "probabilidade prevista = 0.97 (>= 0.7)"}], "acoes_operacionais": ["Executar: abrir unidades temporárias", "Executar: iniciar monitoramento intensivo", "Executar: ativar equipe de resposta rápida", "Executar: redistribuir insumos"], "narracao": "(Modo de segurança: narração indisponível.)", "agentes_acionados": [], "trilha_handoffs_e_tools": [], "tempo_segundos": null, "auditoria": {"aprovada": true, "total_erros": 0, "total_alertas": 0, "verificacoes": [{"verificacao": "probabilidade_valida", "ok": true, "severidade": "ERRO", "detalhe": "probabilidade = 0.97"}, {"verificacao": "faixa_de_risco", "ok": true, "severidade": "ERRO", "detalhe": "registrada = ALTO; esperada para 0.97 = ALTO"}, {"verificacao": "critica_pa_sistolica", "ok": true, "severidade": "ERRO", "detalhe": "pa_sistolica = 88 (< 90) exige: Se PA sistólica < 90 → iniciar protocolo de choque"}, {"verificacao": "critica_fc_media", "ok": true, "severidade": "ERRO", "detalhe": "fc_media = 122 (> 120) exige: Se FC > 120 → iniciar monitoramento intensivo"}, {"verificacao": "protocolos_completos", "ok": true, "severidade": "ERRO", "detalhe": "todos os protocolos aplicáveis foram sugeridos"}, {"verificacao": "protocolos_justificados", "ok": true, "severidade": "ERRO", "detalhe": "todo protocolo sugerido tem base nos dados"}, {"verificacao": "concordancia_modelo_regra", "ok": true, "severidade": "ALERTA", "detalhe": "regra de referência: 6 limite(s) ultrapassado(s) → pico; modelo: pico (0.97)"}]}, "aviso": "Protótipo acadêmico com dados sintéticos. Apoio à decisão; não substitui avaliação médica.", "hash_anterior": "6f19de7ac2b647ce18a1289393a793958cd994881dac281e31bd64f4564f6850", "hash_registro": "437c02f76a5369eae36dd2cd16822b099e47c84c32d82b8eb82e8eeec82355da"}];
+const GERADO_EM = "2026-10-19T13:04:57-03:00";
+
+/* =========================================================
+   2. ELENCO: sprites em pixel art desenhados por código
+   ========================================================= */
+const ELENCO = {
+  ueber:    { nome: "Dr. Ricardo Uéber",       papel: "Orquestrador",               cabelo: "#c9c9c9", pele: "#f1c27d", roupa: "#e8e8e8", detalhe: "#2b3a67", calca: "#2b3a67" },
+  yeng:     { nome: "Dra. Cristiana Yeng",     papel: "Analista de Risco",          cabelo: "#16161c", pele: "#e8b98a", roupa: "#1f9e8f", detalhe: "#ffffff", calca: "#17786d" },
+  beilei:   { nome: "Dra. Mirandinha Beilei",  papel: "Especialista em Protocolos", cabelo: "#2a1a10", pele: "#8d5524", roupa: "#6a3fa0", detalhe: "#ffd23f", calca: "#4f2e7a" },
+  meredite: { nome: "Dra. Meredite Grei",      papel: "Planejadora de Resposta",    cabelo: "#9b6a43", pele: "#ffdbac", roupa: "#3c78d8", detalhe: "#ffffff", calca: "#2c5aa6" },
+  burco:    { nome: "Dr. Burco",               papel: "Validação de saída e Caixa-Preta", cabelo: "#111111", pele: "#c68642", roupa: "#8e2b3a", detalhe: "#ffd23f", calca: "#6a1f2b" },
+};
+
+// H=cabelo S=pele E=olho C=roupa W=crachá/detalhe P=calça B=sapato
+const CORPO = [
+  "...HHHH...",
+  "..HHHHHH..",
+  "..HSSSSH..",
+  "..SESSES..",
+  "..SSSSSS..",
+  "...SSSS...",
+  "..CCCCCC..",
+  ".CCCWCCCC.",
+  ".SCCCCCCS.",
+  ".SCCCCCCS.",
+  "..CCCCCC..",
+  "..PPPPPP..",
+];
+const PERNAS = [
+  ["..PP..PP..", ".PP....PP.", ".PP....PP.", "BB......BB"],
+  ["...PPPP...", "...PP.PP..", "...PP.PP..", "...BB.BB.."],
+  ["...PP.PP..", "...PP.PP..", "...PP.PP..", "..BBB.BBB."], // parado
+];
+
+function desenharPersonagem(ctx, chave, x, y, quadro, escala, apagado) {
+  const c = ELENCO[chave];
+  const cores = { H: c.cabelo, S: c.pele, E: "#111", C: c.roupa, W: c.detalhe, P: c.calca, B: "#222" };
+  const linhas = CORPO.concat(PERNAS[quadro]);
+  ctx.save();
+  if (apagado) ctx.globalAlpha = 0.45;
+  for (let j = 0; j < linhas.length; j++) {
+    for (let i = 0; i < linhas[j].length; i++) {
+      const k = linhas[j][i];
+      if (k === ".") continue;
+      ctx.fillStyle = cores[k];
+      ctx.fillRect(Math.round(x + i * escala), Math.round(y + j * escala), escala, escala);
+    }
+  }
+  ctx.restore();
+}
+
+/* =========================================================
+   3. CENA: corredor noturno com parallax
+   ========================================================= */
+const tela = document.getElementById("tela");
+const ctx = tela.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+const L = 480, A = 270, CHAO = 222, ESC = 3;
+
+// Prédios da cidade vista pelas janelas (gerados uma vez)
+const predios = [];
+for (let i = 0; i < 40; i++) {
+  predios.push({ x: i * 34, h: 40 + ((i * 37) % 70), cor: ["#1b1f4a", "#231a4a", "#15284a"][i % 3], neon: i % 4 === 0 ? (i % 8 === 0 ? "#ff4fa3" : "#39e6ff") : null });
+}
+
+function desenharFundo(camX, estacoes) {
+  // céu
+  ctx.fillStyle = "#0a0b24"; ctx.fillRect(0, 0, L, A);
+  // cidade (parallax lento)
+  const offCidade = -(camX * 0.2) % (34 * 40);
+  for (const p of predios) {
+    let px = p.x + offCidade; if (px < -40) px += 34 * 40;
+    if (px > L) continue;
+    ctx.fillStyle = p.cor; ctx.fillRect(px, 150 - p.h, 30, p.h);
+    ctx.fillStyle = "#ffd76a";
+    for (let wy = 150 - p.h + 6; wy < 146; wy += 10) for (let wx = 4; wx < 26; wx += 8) if ((wx + wy + p.x) % 3 === 0) ctx.fillRect(px + wx, wy, 3, 4);
+    if (p.neon) { ctx.fillStyle = p.neon; ctx.fillRect(px + 4, 150 - p.h - 6, 22, 3); }
+  }
+  // parede do corredor com janelas (parallax médio)
+  const off = -(camX * 0.6) % 120;
+  ctx.fillStyle = "#1a1f45";
+  ctx.fillRect(0, 0, L, 40);
+  for (let x = off - 120; x < L + 120; x += 120) {
+    ctx.fillRect(x, 40, 20, 120);   // pilares entre janelas
+  }
+  ctx.fillRect(0, 150, L, 30);
+  ctx.fillStyle = "#2a3170"; ctx.fillRect(0, 176, L, 4);
+  // luzes do teto
+  for (let x = off - 120; x < L + 120; x += 120) { ctx.fillStyle = "#fff6c9"; ctx.fillRect(x + 50, 30, 30, 4); }
+  // estações (portas com placa), no mundo
+  for (const e of estacoes) {
+    const ex = e.x - camX;
+    if (ex < -120 || ex > L + 120) continue;
+    ctx.fillStyle = "#0f1330"; ctx.fillRect(ex - 6, 100, 60, 80);
+    ctx.fillStyle = e.cor; ctx.fillRect(ex - 2, 104, 52, 76);
+    ctx.fillStyle = "#0f1330"; ctx.fillRect(ex + 22, 104, 4, 76);
+    ctx.fillStyle = "#000"; ctx.fillRect(ex - 30, 80, 108, 16);
+    ctx.fillStyle = e.cor; ctx.fillRect(ex - 30, 94, 108, 2);
+    ctx.font = "7px 'Press Start 2P', monospace"; ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+    ctx.fillText(e.placa, ex + 24, 91);
+  }
+  // piso
+  ctx.fillStyle = "#2b2f4f"; ctx.fillRect(0, 180, L, A - 180);
+  const offPiso = -camX % 32;
+  ctx.fillStyle = "#353a62";
+  for (let x = offPiso - 32; x < L + 32; x += 32) ctx.fillRect(x, 180, 16, A - 180);
+  ctx.fillStyle = "#4a5190"; ctx.fillRect(0, CHAO + 48 - 2, L, 2);
+}
+
+/* =========================================================
+   4. ROTEIRO: transforma um registro da Caixa-Preta em cenas
+   ========================================================= */
+const fmt = n => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+function resumoMotivo(m) {
+  if (!m) return "";
+  const tipos = [...new Set((m.match(/(RateLimitError|InternalServerError|APITimeoutError|APIConnectionError)/g) || []))];
+  const traduz = { RateLimitError: "limite de uso do plano gratuito", InternalServerError: "servidor sobrecarregado", APITimeoutError: "tempo de resposta esgotado", APIConnectionError: "falha de conexão" };
+  return tipos.length ? tipos.map(t => traduz[t]).join(" + ") : m;
+}
+
+function montarRoteiro(r) {
+  const ag = r.modo === "AGENTES";
+  const e = r.entrada;
+  const n = r.protocolos.length;
+  const v = r.auditoria.verificacoes;
+  const nOk = v.filter(x => x.ok).length;
+  return [
+    { agente: "ueber", placa: "RECEPÇÃO", cor: "#2b3a67",
+      fala: ag ? `Novo paciente no plantão: ${r.paciente}. Dra. Yeng, é com você!`
+               : `Novo paciente: ${r.paciente}. Chamei a equipe de IA... e a API não respondeu!`,
+      tecnico: `<b>Entrada:</b> FC ${fmt(e.fc_media)} · SpO2 ${fmt(e.spo2_media)} · PA ${fmt(e.pa_sistolica)} · carga ${fmt(e.carga_sistema)}% · espera ${fmt(e.tempo_espera)} min · recursos ${fmt(e.disponibilidade_recursos)}%<br>` +
+               (ag ? `<b>Handoff →</b> encaminhar_para_analista_de_risco`
+                   : `<b>API Gemini indisponível:</b> ${resumoMotivo(r.motivo_modo)}. <b>MODO DE SEGURANÇA</b>: as ferramentas rodam direto pelo código, sem o modelo de linguagem.`) },
+    { agente: "yeng", placa: "LAB DE RISCO", cor: "#1f9e8f",
+      fala: ag ? `Rodei o modelo. Probabilidade de pico: ${r.probabilidade.toFixed(2)}. Risco ${r.classificacao}. Números não mentem.`
+               : `Sem conversa hoje: a minha ferramenta roda sozinha. Probabilidade ${r.probabilidade.toFixed(2)}, risco ${r.classificacao}.`,
+      tecnico: `<b>Tool</b> prever_risco → ${r.modelo_ml.nome} v${r.modelo_ml.versao} → probabilidade <b>${r.probabilidade.toFixed(2)}</b> → <b>${r.classificacao}</b>` +
+               (ag ? `<br><b>Handoff →</b> encaminhar_para_protocolos` : ` <i>(execução direta)</i>`) },
+    { agente: "beilei", placa: "PROTOCOLOS", cor: "#6a3fa0",
+      fala: n ? `Regra é regra. ${n} protocolo${n > 1 ? "s" : ""} acionado${n > 1 ? "s" : ""}, cada um com o seu motivo.`
+              : `Regra é regra: nenhum limite ultrapassado. Monitoramento de rotina.`,
+      tecnico: `<b>Tool</b> consultar_protocolos → ` + (n ? r.protocolos.map(p => p.motivo).join(" · ") : "nenhum protocolo") +
+               (ag ? `<br><b>Handoff →</b> encaminhar_para_planejador` : ` <i>(execução direta)</i>`) },
+    { agente: "meredite", placa: "PLANEJAMENTO", cor: "#3c78d8",
+      fala: ag ? r.narracao : `Sem o modelo de linguagem, não há narração neste atendimento. As ações vêm direto das regras.`,
+      tecnico: `<b>Saída estruturada</b> RecomendacaoFinal → ${r.acoes_operacionais.length} ação(ões): ${r.acoes_operacionais[0] || "—"}` },
+    { agente: "burco", placa: "CAIXA-PRETA", cor: "#8e2b3a",
+      fala: r.auditoria.aprovada ? `Conferi tudo a partir dos dados brutos. Score, faixa e protocolos batem. Liberado e gravado.`
+                                 : `Reprovado! Há incoerências. Esta decisão precisa de revisão humana.`,
+      tecnico: (ag ? `<b>Output guardrail:</b> aprovado · ` : "") +
+               `<b>Auditoria independente:</b> ${nOk}/${v.length} verificações OK · <b>Registro</b> #${r.id} · <b>hash</b> ${r.hash_registro.slice(0, 12)}…` },
+  ];
+}
+
+/* =========================================================
+   5. ESTADO DO JOGO
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const telas = ["tela-titulo", "tela-selecao", "tela-palpite", "tela-dialogo", "tela-resultado"];
+function mostrar(id) { telas.forEach(t => $(t).classList.toggle("oculto", t !== id)); }
+
+let estado = "titulo";
+let registro = null, roteiro = [], cena = 0, palpite = null;
+let corredor = null; // dados da corrida atual
+let tick = 0;
+
+function lerPlacar() { try { return JSON.parse(localStorage.getItem("anatomia_placar")) || { interno: 0, cardioia: 0 }; } catch (e) { return { interno: 0, cardioia: 0 }; } }
+function salvarPlacar(p) { try { localStorage.setItem("anatomia_placar", JSON.stringify(p)); } catch (e) {} }
+let placar = lerPlacar();
+
+/* ---------- Seleção de paciente ---------- */
+function montarSelecao() {
+  const lista = $("lista-pacientes");
+  lista.innerHTML = "";
+  REGISTROS.forEach((r, i) => {
+    const b = document.createElement("button");
+    b.className = "card";
+    const ag = r.modo === "AGENTES";
+    const quando = new Date(r.data_hora).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    b.innerHTML = `<div class="nome">${r.paciente}</div>
+      <div class="meta">Registro #${r.id} · ${quando}</div>
+      <span class="selo ${ag ? "agentes" : "seguranca"}">${ag ? "MODO AGENTES" : "MODO SEGURANÇA"}</span>`;
+    b.addEventListener("click", () => escolherPaciente(i));
+    lista.appendChild(b);
+  });
+}
+
+function escolherPaciente(i) {
+  registro = REGISTROS[i];
+  const e = registro.entrada;
+  $("palpite-titulo").textContent = `QUAL O RISCO DE ${registro.paciente.split(",")[0].toUpperCase()}?`;
+  $("palpite-dados").innerHTML = `FC ${fmt(e.fc_media)} bpm · SpO2 ${fmt(e.spo2_media)}% · PA ${fmt(e.pa_sistolica)} · temp. ${fmt(e.temperatura)} · eventos 24h ${fmt(e.eventos_24h)}<br>
+    Hospital: carga ${fmt(e.carga_sistema)}% · espera ${fmt(e.tempo_espera)} min · recursos ${fmt(e.disponibilidade_recursos)}%`;
+  estado = "palpite";
+  mostrar("tela-palpite");
+}
+
+/* ---------- Corrida ---------- */
+function iniciarCorrida() {
+  roteiro = montarRoteiro(registro);
+  const estacoes = roteiro.map((s, i) => ({ x: 520 + i * 580, placa: s.placa, cor: s.cor }));
+  const obstaculos = [];
+  for (let i = 0; i < estacoes.length; i++) {
+    const ini = i === 0 ? 220 : estacoes[i - 1].x + 170;
+    const fim = estacoes[i].x - 110;
+    const qtd = i === 0 ? 1 : 2;
+    for (let k = 0; k < qtd; k++) {
+      obstaculos.push({ x: ini + (fim - ini) * (k + 1) / (qtd + 1), tipo: (i + k) % 2 ? "cone" : "maca", batido: false, pulado: false });
+    }
+  }
+  corredor = { x: 60, y: 0, vy: 0, estacoes, obstaculos, pulos: 0, tropecos: 0, lento: 0 };
+  cena = 0;
+  estado = "correndo";
+  mostrar(null);
+  $("hud-esq").textContent = `${ELENCO[roteiro[0].agente].nome.toUpperCase()}`;
+  $("hud-dir").textContent = "";
+}
+
+function pular() {
+  if (estado === "correndo" && corredor.y === 0) corredor.vy = -6.6;
+}
+
+function chegarEstacao() {
+  estado = "dialogo";
+  const s = roteiro[cena];
+  const p = ELENCO[s.agente];
+  $("dlg-quem").textContent = `${p.nome.toUpperCase()} · ${p.papel.toUpperCase()}`;
+  $("dlg-tecnico").innerHTML = s.tecnico;
+  digitar(s.fala);
+  mostrar("tela-dialogo");
+}
+
+let digitando = null;
+function digitar(texto) {
+  const alvo = $("dlg-fala");
+  alvo.textContent = "";
+  let i = 0;
+  clearInterval(digitando);
+  digitando = setInterval(() => {
+    i += 2; alvo.textContent = texto.slice(0, i);
+    if (i >= texto.length) { clearInterval(digitando); digitando = null; }
+  }, 22);
+  alvo.dataset.completo = texto;
+}
+
+function continuar() {
+  if (estado !== "dialogo") return;
+  if (digitando) { clearInterval(digitando); digitando = null; $("dlg-fala").textContent = $("dlg-fala").dataset.completo; return; }
+  cena++;
+  if (cena >= roteiro.length) { mostrarResultado(); return; }
+  estado = "correndo";
+  mostrar(null);
+  corredor.flutuante = { texto: "HANDOFF!", vida: 60 };
+  $("hud-esq").textContent = `${ELENCO[roteiro[cena].agente].nome.toUpperCase()}`;
+}
+
+/* ---------- Resultado ---------- */
+function mostrarResultado() {
+  estado = "resultado";
+  const r = registro;
+  const ag = r.modo === "AGENTES";
+  const acertou = palpite === r.classificacao;
+  if (acertou) placar.interno++; else placar.cardioia++;
+  salvarPlacar(placar);
+
+  $("res-titulo").textContent = `RESULTADO · ${r.paciente.toUpperCase()}`;
+  $("res-tecnico").innerHTML = `
+    <div class="linha"><span class="rotulo">RISCO PREVISTO:</span> ${r.probabilidade.toFixed(2)}</div>
+    <div class="linha"><span class="rotulo">CLASSIFICAÇÃO:</span> <span class="cls-${r.classificacao}">${r.classificacao}</span></div>
+    <div class="linha"><span class="rotulo">PROTOCOLOS SUGERIDOS:</span></div>
+    <ul>${r.protocolos.length ? r.protocolos.map(p => `<li>${p.protocolo}<br><small>motivo: ${p.motivo}</small></li>`).join("") : "<li>Nenhum protocolo acionado. Manter monitoramento de rotina.</li>"}</ul>
+    <div class="linha" style="margin-top:8px"><span class="rotulo">AÇÕES OPERACIONAIS:</span></div>
+    <ul>${r.acoes_operacionais.map(a => `<li>${a}</li>`).join("")}</ul>`;
+
+  $("res-narracao").textContent = ag ? r.narracao : "Narração indisponível: este atendimento ocorreu em modo de segurança (sem modelo de linguagem).";
+
+  $("res-auditoria").innerHTML = r.auditoria.verificacoes.map(v =>
+    `<div class="${v.ok ? "ok" : (v.severidade === "ALERTA" ? "alerta" : "falha")}">${v.ok ? "✔" : "✖"} ${v.verificacao.replace(/_/g, " ")}</div>`).join("") +
+    `<div style="margin-top:6px">Resultado: <b class="${r.auditoria.aprovada ? "ok" : "falha"}">${r.auditoria.aprovada ? "APROVADA" : "REPROVADA"}</b></div>
+     <div style="color:var(--suave);font-size:17px;margin-top:4px">hash ${r.hash_registro.slice(0, 20)}…<br>anterior ${r.hash_anterior.slice(0, 20)}…</div>`;
+
+  $("res-modo").innerHTML = ag
+    ? `<span class="selo agentes">MODO AGENTES</span><br>Modelo de linguagem: ${r.modelo_linguagem}<br>Tempo de atendimento: ${r.tempo_segundos} s<br>Fluxo: ${r.trilha_handoffs_e_tools.join(" → ")}`
+    : `<span class="selo seguranca">MODO SEGURANÇA</span><br>Motivo: ${resumoMotivo(r.motivo_modo)}.<br>O modelo de ML e as regras continuaram funcionando, e o motivo ficou registrado na Caixa-Preta.`;
+
+  $("res-placar").innerHTML = `Seu palpite: ${palpite} ${acertou ? "<span class='ok'>✔ ACERTOU</span>" : "<span class='falha'>✖ ERROU</span>"}<br>
+    INTERNO ${placar.interno} × ${placar.cardioia} CARDIOIA<br>
+    Macas puladas: ${corredor.pulos} · tropeços: ${corredor.tropecos}`;
+
+  $("res-json").textContent = JSON.stringify(r, null, 2);
+  $("res-json").classList.add("oculto");
+  $("hud-esq").textContent = "PLANTÃO ENCERRADO";
+  $("hud-dir").textContent = "";
+  mostrar("tela-resultado");
+}
+
+/* =========================================================
+   6. LOOP DE ANIMAÇÃO
+   ========================================================= */
+function desenharObstaculo(o, sx) {
+  if (o.tipo === "maca") {
+    ctx.fillStyle = "#d9dde8"; ctx.fillRect(sx, CHAO + 30, 26, 6);
+    ctx.fillStyle = "#8aa0d0"; ctx.fillRect(sx + 2, CHAO + 26, 10, 4);
+    ctx.fillStyle = "#666"; ctx.fillRect(sx + 2, CHAO + 36, 2, 8); ctx.fillRect(sx + 22, CHAO + 36, 2, 8);
+    ctx.fillStyle = "#222"; ctx.fillRect(sx, CHAO + 44, 6, 4); ctx.fillRect(sx + 20, CHAO + 44, 6, 4);
+  } else {
+    ctx.fillStyle = "#ff8a1f";
+    ctx.fillRect(sx + 4, CHAO + 30, 4, 4); ctx.fillRect(sx + 2, CHAO + 34, 8, 6); ctx.fillRect(sx, CHAO + 40, 12, 6);
+    ctx.fillStyle = "#fff"; ctx.fillRect(sx + 2, CHAO + 36, 8, 2);
+    ctx.fillStyle = "#333"; ctx.fillRect(sx - 2, CHAO + 46, 16, 2);
+  }
+}
+
+function quadroCorrida() {
+  const c = corredor;
+  const atual = Math.min(cena, roteiro.length - 1);   // após o fim, mantém o último agente em cena
+  const alvo = c.estacoes[atual].x - 14;
+  if (estado === "correndo") {
+    const vel = c.lento > 0 ? 1.4 : 2.8;
+    if (c.lento > 0) c.lento--;
+    c.x = Math.min(alvo, c.x + vel);
+    // física do pulo
+    c.vy += 0.38; c.y = Math.min(0, c.y + c.vy); if (c.y === 0) c.vy = 0;
+    // colisões
+    for (const o of c.obstaculos) {
+      const largura = o.tipo === "maca" ? 26 : 12;
+      const pe = CHAO + 48 + c.y; // base do personagem
+      const sobrepoe = c.x + 24 > o.x && c.x + 6 < o.x + largura;
+      if (sobrepoe && pe > CHAO + 30 && !o.batido && !o.pulado) { o.batido = true; c.tropecos++; c.lento = 40; }
+      if (!o.batido && !o.pulado && c.x + 6 > o.x + largura) { o.pulado = true; c.pulos++; }
+    }
+    if (c.x >= alvo) chegarEstacao();
+  }
+  const camX = Math.max(0, c.x - 140);
+  desenharFundo(camX, c.estacoes);
+  for (const o of c.obstaculos) { const sx = o.x - camX; if (sx > -30 && sx < L + 30) desenharObstaculo(o, sx); }
+  // colegas que já passaram ficam nas portas, apagados
+  for (let i = 0; i < atual; i++) desenharPersonagem(ctx, roteiro[i].agente, c.estacoes[i].x - camX + 10, CHAO, 2, ESC, true);
+  // corredor atual
+  const correndo = estado === "correndo";
+  const quadro = !correndo ? 2 : (c.y < 0 ? 0 : (Math.floor(tick / 7) % 2));
+  const piscar = c.lento > 0 && Math.floor(tick / 4) % 2;
+  if (!piscar) desenharPersonagem(ctx, roteiro[atual].agente, c.x - camX, CHAO + c.y, quadro, ESC, false);
+  if (c.flutuante && c.flutuante.vida > 0) {
+    c.flutuante.vida--;
+    ctx.font = "10px 'Press Start 2P', monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = "#000"; ctx.fillText(c.flutuante.texto, c.x - camX + 17, CHAO - 12 + c.flutuante.vida / 6);
+    ctx.fillStyle = "#39e6ff"; ctx.fillText(c.flutuante.texto, c.x - camX + 15, CHAO - 14 + c.flutuante.vida / 6);
+  }
+  $("hud-dir").textContent = `PULOS ${c.pulos} · TROPEÇOS ${c.tropecos}`;
+}
+
+function quadroDesfile() {
+  // tela de título/seleção: a equipe correndo em fila pelo corredor
+  const camX = tick * 1.2;
+  desenharFundo(camX, []);
+  const ordem = ["ueber", "yeng", "beilei", "meredite", "burco"];
+  ordem.forEach((k, i) => {
+    const x = ((tick * 1.6 + i * 70) % (L + 120)) - 60;
+    desenharPersonagem(ctx, k, x, CHAO, Math.floor((tick + i * 3) / 7) % 2, ESC, false);
+  });
+  ctx.font = "8px 'Press Start 2P', monospace"; ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+  if (Math.floor(tick / 30) % 2) ctx.fillText("A EQUIPE DO PLANTÃO", L / 2, 24);
+}
+
+function loop() {
+  tick++;
+  if (corredor && (estado === "correndo" || estado === "dialogo" || estado === "resultado")) quadroCorrida();
+  else quadroDesfile();
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   7. CONTROLES (teclado, clique e toque)
+   ========================================================= */
+function acao() {
+  if (estado === "correndo") pular();
+  else if (estado === "dialogo") continuar();
+}
+document.addEventListener("keydown", ev => {
+  if (["Space", "ArrowUp", "Enter"].includes(ev.code)) {
+    if (estado === "correndo" || estado === "dialogo") { ev.preventDefault(); acao(); }
+  }
+});
+tela.addEventListener("pointerdown", acao);
+$("tela-dialogo").addEventListener("pointerdown", acao);
+
+$("btn-start").addEventListener("click", () => { estado = "selecao"; mostrar("tela-selecao"); });
+document.querySelectorAll("[data-palpite]").forEach(b => b.addEventListener("click", () => { palpite = b.dataset.palpite; iniciarCorrida(); }));
+$("btn-outro").addEventListener("click", () => { corredor = null; estado = "selecao"; mostrar("tela-selecao"); $("hud-esq").textContent = ""; });
+$("btn-json").addEventListener("click", () => $("res-json").classList.toggle("oculto"));
+
+/* =========================================================
+   8. INÍCIO
+   ========================================================= */
+$("tag-fonte").textContent = REGISTROS.length
+  ? `Replay de ${REGISTROS.length} registros reais da Caixa-Preta · gerado em ${new Date(GERADO_EM).toLocaleDateString("pt-BR")}`
+  : "Nenhum registro encontrado";
+montarSelecao();
+loop();
+</script>
+</body>
+</html>
